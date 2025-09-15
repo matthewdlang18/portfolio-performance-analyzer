@@ -15,7 +15,7 @@ A comprehensive Streamlit dashboard for advanced portfolio analysis, optimizatio
 - **Era Analysis**: Study different market periods (1970s stagflation, 1980s bull market, dot-com bubble, 2008 crisis, etc.)
 
 ### Core Analysis
-- **📊 Performance Comparison**: Compare your portfolio against SPX (S&P 500) and SPXE (Equal Weight S&P 500)
+- **📊 Performance Comparison**: Compare your portfolio against SPX (S&P 500) and SPXE (S&P 500 ESG ETF)
 - **📈 Time-Weighted Returns**: Properly calculated returns accounting for deposits/withdrawals
 - **🎯 Capital Market Line Analysis**: Visualize optimal risk-return trade-offs
 - **🏆 Performance Rankings**: See how your portfolio ranks against benchmarks
@@ -48,6 +48,7 @@ A comprehensive Streamlit dashboard for advanced portfolio analysis, optimizatio
 ### Portfolio Holdings Analysis ✨ NEW
 - **📂 Holdings Overview**: Complete portfolio positions with current values and performance
 - **📊 Portfolio Beta Analysis**: Calculate overall portfolio beta vs S&P 500
+- **🎯 Index Fund Exclusion**: Option to exclude index funds (VOO, SPY, etc.) from beta analysis
 - **📈 Portfolio Scatterplot**: Interactive visualization of portfolio-level beta relationship
 - **🔍 Individual Position Betas**: Beta analysis for each stock position in your portfolio
 - **💰 Portfolio Composition**: Visual breakdown of holdings with pie charts
@@ -172,7 +173,7 @@ alpha = portfolio_return - expected_return
 
 ### Data Sources
 - **SPX Data**: Real-time S&P 500 data from Yahoo Finance API (1927-present) with automatic fallback to static data
-- **SPXE Data**: Equal Weight S&P 500 ETF data via Yahoo Finance API with static fallback
+- **SPXE Data**: S&P 500 ESG ETF data via Yahoo Finance API with static fallback
 - **Portfolio Data**: Your investment account statements
 - **Individual Stock Data**: Real-time data fetched via Yahoo Finance API for any publicly traded stock
 - **Historical Range**: Nearly 100 years of market data available (1927 to today)
