@@ -760,11 +760,66 @@ def calculate_dcf_valuation(symbol, growth_rate=0.08, growth_years=5, terminal_g
     except Exception as e:
         return None, f"Error in DCF calculation: {str(e)}"
 
-def get_portfolio_beta_analysis(portfolio_positions):
-    """Calculate portfolio beta vs SPX benchmark"""
+def get_portfolio_beta_analysis(portfolio_positions, exclude_index_funds=False):
+    """Calculate portfolio beta vs SPX benchmark
+    
+    Args:
+        portfolio_positions: DataFrame with portfolio positions
+        exclude_index_funds: If True, exclude index funds/ETFs from beta calculation
+    """
     try:
         if portfolio_positions is None or len(portfolio_positions) == 0:
             return None
+        
+        # Filter out index funds if requested
+        if exclude_index_funds:
+            # Common index fund patterns to exclude
+            index_fund_patterns = [
+                'VOO', 'SPY', 'IVV', 'VTI', 'QQQ', 'DIA', 'EFA', 'EEM', 'VEA', 'VWO', 
+                'BND', 'AGG', 'VXUS', 'VTEB', 'SPAXX', 'VTIAX', 'VTMGX', 'SPDR', 
+                'VTV', 'IHI', 'RSP', 'SPXE', 'XLK', 'XLF', 'XLE', 'XLV', 'XLI', 
+                'XLY', 'XLP', 'XLB', 'XLU', 'XLRE', 'GLD', 'SLV', 'SCHX', 'ITOT',
+                'SPLG', 'VMOT', 'VIG', 'VTSAX', 'VTIAX', 'FXAIX', 'FTIHX', 'IJH',
+                'IJR', 'IEMG', 'IXUS', 'ARKK', 'ARKG', 'ARKQ', 'ARKF', 'ARKW'
+            ]
+            
+            # Filter portfolio positions
+            filtered_positions = []
+            excluded_symbols = []
+            
+            for _, position in portfolio_positions.iterrows():
+                symbol = str(position['Symbol']).upper() if pd.notna(position['Symbol']) else ''
+                
+                # Skip cash positions and NaN
+                if pd.isna(position['Symbol']) or symbol == 'SPAXX**' or symbol == '':
+                    excluded_symbols.append(symbol if symbol else 'CASH')
+                    continue
+                
+                # Check if it's an index fund/ETF
+                is_index_fund = any(pattern in symbol for pattern in index_fund_patterns)
+                is_etf_like = symbol.endswith('X') or len(symbol) > 5  # Common ETF patterns
+                
+                if is_index_fund or is_etf_like:
+                    excluded_symbols.append(symbol)
+                else:
+                    filtered_positions.append(position)
+            
+            if len(filtered_positions) == 0:
+                st.warning("⚠️ No individual stocks found after excluding index funds/ETFs")
+                return None
+            
+            # Convert back to DataFrame
+            filtered_df = pd.DataFrame(filtered_positions)
+            
+            # Show what was excluded
+            if excluded_symbols:
+                excluded_text = ', '.join(excluded_symbols[:10])  # Show first 10
+                if len(excluded_symbols) > 10:
+                    excluded_text += f" and {len(excluded_symbols) - 10} more"
+                st.info(f"📊 Excluded from beta analysis: {excluded_text}")
+                st.info(f"💰 Analyzing {len(filtered_df)} individual stocks (excluded {len(excluded_symbols)} index funds/ETFs)")
+            
+            portfolio_positions = filtered_df
         
         # Get SPX data for beta calculation
         spx = yf.Ticker("^GSPC")
@@ -2944,9 +2999,23 @@ def main():
             # Portfolio Beta Analysis
             st.subheader("📊 Portfolio Beta Analysis")
             
+            # Option to exclude index funds
+            col_beta1, col_beta2 = st.columns([3, 1])
+            with col_beta1:
+                exclude_index_funds = st.checkbox(
+                    "🎯 Exclude Index Funds from Beta Analysis", 
+                    value=True,
+                    help="Remove index funds like VOO, SPY, VTI from portfolio beta calculation since they track the market (beta ≈ 1.0)"
+                )
+                if exclude_index_funds:
+                    st.info("💡 Will exclude index funds/ETFs (VOO, SPY, VTI, etc.) to analyze only individual stock beta exposure")
+            
+            with col_beta2:
+                st.markdown("**Beta Analysis**")
+            
             if st.button("🔍 Calculate Portfolio Beta"):
                 with st.spinner("Calculating portfolio beta vs S&P 500..."):
-                    beta_analysis = get_portfolio_beta_analysis(portfolio_positions)
+                    beta_analysis = get_portfolio_beta_analysis(portfolio_positions, exclude_index_funds=exclude_index_funds)
                 
                 if beta_analysis:
                     col1, col2 = st.columns(2)
