@@ -2799,18 +2799,85 @@ def main():
         if portfolio_positions is not None and len(portfolio_positions) > 0:
             st.success(f"✅ Successfully loaded {len(portfolio_positions)} portfolio positions")
             
-            # Display portfolio summary metrics
-            total_value = portfolio_positions['Current_Value'].sum()
-            total_gain_loss = portfolio_positions['Total_Gain_Loss_Dollar'].sum()
-            weighted_gain_loss_pct = (total_gain_loss / (total_value - total_gain_loss)) * 100
+            # Automatically fetch current market prices and update values
+            with st.spinner("Fetching current market prices..."):
+                try:
+                    updated_positions = portfolio_positions.copy()
+                    successful_updates = 0
+                    failed_updates = []
+                    
+                    for idx, position in updated_positions.iterrows():
+                        symbol = position['Symbol']
+                        
+                        try:
+                            # Fetch current price from Yahoo Finance
+                            ticker = yf.Ticker(symbol)
+                            info = ticker.info
+                            current_price = info.get('currentPrice', info.get('regularMarketPrice'))
+                            
+                            if current_price and current_price > 0:
+                                # Update the price and calculate new values
+                                quantity = position['Quantity']
+                                
+                                # Calculate new current value
+                                new_current_value = current_price * quantity
+                                
+                                # Calculate new gain/loss (assuming cost basis remains the same)
+                                cost_basis = position['Current_Value'] - position['Total_Gain_Loss_Dollar']
+                                new_gain_loss_dollar = new_current_value - cost_basis
+                                new_gain_loss_percent = new_gain_loss_dollar / cost_basis if cost_basis != 0 else 0
+                                
+                                # Update the dataframe
+                                updated_positions.loc[idx, 'Last_Price'] = current_price
+                                updated_positions.loc[idx, 'Current_Value'] = new_current_value
+                                updated_positions.loc[idx, 'Total_Gain_Loss_Dollar'] = new_gain_loss_dollar
+                                updated_positions.loc[idx, 'Total_Gain_Loss_Percent'] = new_gain_loss_percent
+                                
+                                successful_updates += 1
+                            else:
+                                failed_updates.append(symbol)
+                                
+                        except Exception as e:
+                            failed_updates.append(f"{symbol}")
+                            continue
+                    
+                    # Use updated values for all calculations
+                    portfolio_positions = updated_positions
+                    
+                    # Calculate updated portfolio totals
+                    total_value = portfolio_positions['Current_Value'].sum()
+                    total_gain_loss = portfolio_positions['Total_Gain_Loss_Dollar'].sum()
+                    weighted_gain_loss_pct = (total_gain_loss / (total_value - total_gain_loss)) * 100
+                    
+                    # Recalculate portfolio weights
+                    portfolio_positions['Percent_Of_Account'] = portfolio_positions['Current_Value'] / total_value
+                    
+                    # Show update status
+                    if successful_updates > 0:
+                        st.success(f"✅ Real-time prices updated for {successful_updates} positions at {pd.Timestamp.now().strftime('%H:%M:%S')}")
+                    if failed_updates:
+                        st.warning(f"⚠️ Could not update prices for {len(failed_updates)} positions: {', '.join(failed_updates[:5])}")
+                        
+                except Exception as e:
+                    st.warning(f"⚠️ Some prices may not be current due to market data limitations")
+                    # Fall back to original values if update fails completely
+                    total_value = portfolio_positions['Current_Value'].sum()
+                    total_gain_loss = portfolio_positions['Total_Gain_Loss_Dollar'].sum()
+                    weighted_gain_loss_pct = (total_gain_loss / (total_value - total_gain_loss)) * 100
             
-            col1, col2, col3 = st.columns(3)
+            # Display current portfolio summary metrics
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
             with col1:
                 st.metric("Total Portfolio Value", f"${total_value:,.2f}")
             with col2:
                 st.metric("Total Gain/Loss", f"${total_gain_loss:,.2f}")
             with col3:
                 st.metric("Portfolio Return", f"{weighted_gain_loss_pct:.2f}%")
+            with col4:
+                if st.button("🔄", help="Refresh prices", key="refresh_prices"):
+                    st.rerun()
+            
+            st.markdown("---")
             
             # Format the dataframe for display
             display_df = portfolio_positions.copy()
