@@ -243,14 +243,14 @@ def get_spx_data_dynamic(start_date, end_date):
         return None
 
 def get_spxe_data_dynamic(start_date, end_date):
-    """Fetch SPXE (S&P 500 ESG ETF) data dynamically from Yahoo Finance for any date range"""
+    """Fetch SPXE (ProShares S&P 500 Ex-Energy ETF) data dynamically from Yahoo Finance for any date range"""
     try:
         import yfinance as yf
         import warnings
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            spxe_ticker = yf.Ticker("SPXE")  # SPDR S&P 500 ESG ETF
+            spxe_ticker = yf.Ticker("SPXE")  # ProShares S&P 500 Ex-Energy ETF
             hist_data = spxe_ticker.history(start=start_date, end=end_date, interval="1d")
         
         if hist_data.empty:
@@ -270,7 +270,7 @@ def get_spxe_data_dynamic(start_date, end_date):
         return df
         
     except Exception as e:
-        st.error(f"Error fetching SPXE (S&P 500 ESG ETF) data: {str(e)}")
+        st.error(f"Error fetching SPXE (ProShares S&P 500 Ex-Energy ETF) data: {str(e)}")
         return None
 
 def get_spx_monthly_data():
@@ -342,7 +342,7 @@ def get_spx_monthly_data():
     return df
 
 def get_spxe_monthly_data():
-    """Return SPXE (S&P 500 ESG ETF) monthly data - fallback static data for offline use"""
+    """Return SPXE (ProShares S&P 500 Ex-Energy ETF) monthly data - fallback static data for offline use"""
     data = [
         {'date': '2021-01-29', 'price': 40.17},
         {'date': '2021-02-26', 'price': 41.17},
@@ -2471,7 +2471,7 @@ def main():
             st.warning("⚠️ Using fallback SPXE data - dynamic fetch failed or insufficient data")
             spxe_data = get_spxe_monthly_data()
         else:
-            st.success(f"✅ Loaded {len(spxe_data)} months of SPXE (S&P 500 ESG ETF) data from Yahoo Finance")
+            st.success(f"✅ Loaded {len(spxe_data)} months of SPXE (ProShares S&P 500 Ex-Energy ETF) data from Yahoo Finance")
     
     # Risk-free rate input
     st.sidebar.subheader("Risk Parameters")
@@ -2539,7 +2539,7 @@ def main():
             f"{spx_sharpe:.3f}" if spx_analysis else 'N/A',
             str(spx_analysis['totalMonths']) if spx_analysis else 'N/A'
         ],
-        'SPXE (S&P 500 ESG ETF)': [
+        'SPXE (S&P 500 Ex-Energy)': [
             f"{(spxe_analysis['totalReturn'] if show_total_returns else spxe_analysis['annualizedReturn']) * 100:.2f}%" if spxe_analysis else 'N/A',
             f"{spxe_analysis['annualizedStdDev'] * 100:.2f}%" if spxe_analysis else 'N/A',
             f"{spxe_sharpe:.3f}" if spxe_analysis else 'N/A',
@@ -2570,7 +2570,7 @@ def main():
     
     if spxe_analysis:
         portfolios.append({
-            'name': 'SPXE (S&P 500 ESG ETF)',
+            'name': 'SPXE (S&P 500 Ex-Energy)',
             'value': spxe_analysis['totalReturn'] if show_total_returns else spxe_sharpe,
             'type': 'spxe'
         })
@@ -2693,7 +2693,7 @@ def main():
                 x=spxe_dates,
                 y=spxe_returns,
                 mode='lines+markers',
-                name='SPXE (S&P 500 ESG)',
+                name='SPXE (S&P 500 Ex-Energy)',
                 line=dict(color='green', width=2)
             ))
         
@@ -2725,7 +2725,7 @@ def main():
                 x=[spxe_analysis['annualizedStdDev'] * 100],
                 y=[spxe_analysis['annualizedReturn'] * 100],
                 mode='markers',
-                name='SPXE (S&P 500 ESG ETF)',
+                name='SPXE (S&P 500 Ex-Energy)',
                 marker=dict(color='green', size=12, symbol='triangle-up')
             ))
         
