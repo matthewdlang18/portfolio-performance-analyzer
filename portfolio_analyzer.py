@@ -47,7 +47,17 @@ st.markdown(
 )
 
 def load_portfolio_data():
-    """Load and preprocess portfolio data from CSV file"""
+    """Load and preprocess portfolio data from CSV file
+    
+    This function handles the Investment_income_balance_detail.csv file which may contain:
+    - Regular monthly entries like "Jul-25"
+    - Special entries like "Aug 2025(As of Aug-15-2025)" for partial months
+    - Account setup entries like "Jan 2021(As of Jan-01-2021)" 
+    - Summary/total rows and notes
+    
+    The function filters out problematic entries and removes duplicates to ensure
+    clean monthly returns data without duplicate dates or N/A entries.
+    """
     try:
         # Try multiple path strategies to find the CSV file
         possible_paths = [
@@ -85,11 +95,40 @@ def load_portfolio_data():
         
         # Parse date
         def parse_date(date_str):
-            if 'Aug 2025' in str(date_str):
-                return '2025-12-31'
-            elif '-' in str(date_str):
-                # Handle format like "Jul-25"
-                parts = str(date_str).split('-')
+            date_str = str(date_str).strip()
+            
+            # Skip total rows, empty rows, and notes
+            if any(skip_word in date_str.lower() for skip_word in ['total', 'for existing', 'included', 'opened', 'unavailable', 'additionally', 'fees', 'does not', 'funds', 'period', 'paid', 'shown', 'interest', 'market change', 'activities', 'time period', '1132521']):
+                return None
+            
+            # Handle special format entries (partial months or account setup)
+            if '(As of' in date_str:
+                # Extract the base month from entries like "Aug 2025(As of Aug-15-2025)" or "Jan 2021(As of Jan-01-2021)"
+                base_part = date_str.split('(')[0].strip()
+                
+                # Skip account setup entries that represent initial deposits
+                if 'Jan 2021' in date_str:
+                    return None  # Skip initial account setup entry
+                    
+                # Handle partial months like "Aug 2025"
+                if ' ' in base_part:
+                    month_str, year_str = base_part.split(' ')
+                    month_map = {
+                        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+                        'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+                        'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+                    }
+                    month = month_map.get(month_str, '01')
+                    year = year_str
+                    # Use last day of month for monthly data
+                    day = '31' if month in ['01', '03', '05', '07', '08', '10', '12'] else '30'
+                    if month == '02':
+                        day = '28'
+                    return f"{year}-{month}-{day}"
+            
+            # Handle standard format like "Jul-25"
+            elif '-' in date_str and len(date_str.split('-')) == 2:
+                parts = date_str.split('-')
                 if len(parts) == 2:
                     month_map = {
                         'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
@@ -103,6 +142,7 @@ def load_portfolio_data():
                     if month == '02':
                         day = '28'
                     return f"{year}-{month}-{day}"
+            
             return None
         
         # Process the data
@@ -116,7 +156,13 @@ def load_portfolio_data():
         df['Dividends'] = df['Dividends'].apply(clean_currency)
         
         # Remove invalid data and sort
-        df = df.dropna(subset=['Date']).sort_values('Date', ascending=False)
+        # Filter out rows where Date is None/NaN or where the data appears to be summary/notes
+        df = df.dropna(subset=['Date'])
+        df = df[df['Ending_Balance'] > 0]  # Remove rows with no ending balance (likely summary rows)
+        df = df.sort_values('Date', ascending=False)
+        
+        # Remove duplicate dates by keeping the first occurrence (most recent/complete data)
+        df = df.drop_duplicates(subset=['Date'], keep='first')
         
         # Calculate additional fields for compatibility
         df = df.rename(columns={
@@ -2627,30 +2673,36 @@ def main():
     with tab1:
         st.subheader("Monthly Returns Comparison")
         
-        # Create aligned monthly returns data
-        max_length = max(
-            len(portfolio_analysis['monthlyReturns']),
-            len(spx_analysis['monthlyReturns']) if spx_analysis else 0,
-            len(spxe_analysis['monthlyReturns']) if spxe_analysis else 0
-        )
-        
+        # Create aligned monthly returns data based on portfolio dates only
+        # This prevents duplicate dates and N/A entries when portfolio data is unavailable
         aligned_data = []
-        for i in range(max_length):
-            portfolio_return = portfolio_analysis['monthlyReturns'][i] if i < len(portfolio_analysis['monthlyReturns']) else None
-            spx_return = spx_analysis['monthlyReturns'][i] if spx_analysis and i < len(spx_analysis['monthlyReturns']) else None
-            spxe_return = spxe_analysis['monthlyReturns'][i] if spxe_analysis and i < len(spxe_analysis['monthlyReturns']) else None
+        
+        # Use portfolio dates as the primary source to avoid N/A entries
+        for portfolio_return in portfolio_analysis['monthlyReturns']:
+            portfolio_date = portfolio_return['date']
             
-            if portfolio_return or spx_return or spxe_return:
-                date_val = (portfolio_return['date'] if portfolio_return else 
-                           spx_return['date'] if spx_return else 
-                           spxe_return['date'])
-                
-                aligned_data.append({
-                    'Date': date_val.strftime('%Y-%m-%d') if pd.notna(date_val) else '',
-                    'Your Portfolio': f"{portfolio_return['returnPct']:.2f}%" if portfolio_return else 'N/A',
-                    'SPX': f"{spx_return['returnPct']:.2f}%" if spx_return else 'N/A',
-                    'SPXE': f"{spxe_return['returnPct']:.2f}%" if spxe_return else 'N/A'
-                })
+            # Find matching SPX return for this date
+            spx_return = None
+            if spx_analysis:
+                for spx_ret in spx_analysis['monthlyReturns']:
+                    if spx_ret['date'].strftime('%Y-%m') == portfolio_date.strftime('%Y-%m'):
+                        spx_return = spx_ret
+                        break
+            
+            # Find matching SPXE return for this date
+            spxe_return = None
+            if spxe_analysis:
+                for spxe_ret in spxe_analysis['monthlyReturns']:
+                    if spxe_ret['date'].strftime('%Y-%m') == portfolio_date.strftime('%Y-%m'):
+                        spxe_return = spxe_ret
+                        break
+            
+            aligned_data.append({
+                'Date': portfolio_date.strftime('%Y-%m-%d'),
+                'Your Portfolio': f"{portfolio_return['returnPct']:.2f}%",
+                'SPX': f"{spx_return['returnPct']:.2f}%" if spx_return else 'N/A',
+                'SPXE': f"{spxe_return['returnPct']:.2f}%" if spxe_return else 'N/A'
+            })
         
         returns_df = pd.DataFrame(aligned_data)
         st.dataframe(returns_df, use_container_width=True, hide_index=True)
